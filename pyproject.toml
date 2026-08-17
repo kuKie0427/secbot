@@ -131,6 +131,7 @@ include = [
     "router*",
     "secbot_agent*",
     "secbot_cli*",
+    "secbot_web*",
     "tools*",
     "utils*",
 ]
@@ -139,6 +140,7 @@ exclude = ["tests*"]
 [tool.setuptools.package-data]
 "secbot_agent.prompts" = ["templates/*.yaml", "templates/*.yml"]
 "secbot_agent.skills" = ["base/*/*.md"]
+"secbot_web" = ["dist/**/*", "dist/*"]
 "*" = ["*.yaml", "*.yml", "*.txt", "*.md", "env.example"]
 
 [tool.setuptools.exclude-package-data]
@@ -157,6 +159,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+markers = [
+    "web: Web 前端冒烟测试（需先 `make build-web` 产出 dist；CI 可选跑）",
+]
 
 [dependency-groups]
 dev = [

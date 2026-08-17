@@ -1,10 +1,8 @@
 # 包含入口脚本（与 PyInstaller / 源码分发一致）
 include scripts/main.py
-include config.py
 include env.example
 include .pypirc.example
 include README.md
-include requirements.txt
 
 # 包含提示词模板
 recursive-include secbot_agent/prompts/templates *.yaml *.yml
@@ -12,3 +10,6 @@ recursive-include secbot_agent/prompts/templates *.yaml *.yml
 # 包含文档
 recursive-include docs *.md
 
+
+# Web 前端构建产物（sdist 场景；wheel 走 package-data secbot_web）
+recursive-include secbot_web/dist *

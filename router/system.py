@@ -202,7 +202,7 @@ async def set_api_key(body: SetApiKeyRequest):
         provider = (body.provider or "").strip().lower()
         if not provider:
             return SetApiKeyResponse(success=False, message="provider 不能为空")
-        key = (body.api_key or "").strip()
+        key = (body.api_key if body.api_key is not None else (body.apiKey or "") or "").strip()
         only_update_base_url = not key and body.base_url is not None
         msg = ""
         if not key and not only_update_base_url:
@@ -243,7 +243,7 @@ async def set_provider(body: SetProviderRequest):
         from utils.model_selector import get_provider_config
         from hackbot_config import save_llm_provider
 
-        provider = (body.llm_provider or "").strip().lower()
+        provider = body.resolved_provider().lower()
         if not provider:
             return SetApiKeyResponse(success=False, message="llm_provider 不能为空")
         config = get_provider_config(provider)

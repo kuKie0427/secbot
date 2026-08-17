@@ -15,12 +15,23 @@ from pydantic import BaseModel, Field
 ChatMode = Literal["ask", "agent"]
 
 
+class ClientShell(BaseModel):
+    """客户端内置终端环境（可选），用于提示 LLM 生成与用户侧一致的命令（对齐 TS ClientShellDto）。"""
+
+    platform: Optional[str] = None
+    shell: Optional[str] = None
+    comspec: Optional[str] = None
+    terminal_profile: Optional[str] = None
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="用户消息")
+    session_id: Optional[str] = Field(None, description="会话 ID（前端 useChat 传入，用于会话隔离）")
     mode: ChatMode = Field("agent", description="模式: ask=仅提问, agent=执行智能体（开源版自动化安全测试智能体）")
     agent: str = Field("secbot-cli", description="智能体类型 (secbot-cli/superhackbot)，mode=agent 时有效")
     prompt: Optional[str] = Field(None, description="自定义系统提示词")
     model: Optional[str] = Field(None, description="模型偏好（如 deepseek-reasoner / gpt-oss:20b），后端可选使用")
+    client_shell: Optional[ClientShell] = Field(None, description="客户端终端环境（对齐 TS）")
 
 
 class ChatResponse(BaseModel):
@@ -121,7 +132,9 @@ class ProviderListResponse(BaseModel):
 
 class SetApiKeyRequest(BaseModel):
     provider: str = Field(..., description="厂商 id，如 deepseek / openai / custom")
-    api_key: str = Field(..., description="API Key，空字符串表示删除")
+    # TS DTO 字段为 apiKey；web 前端发送 api_key——双字段兼容（API_PARITY D7）
+    api_key: Optional[str] = Field(None, description="API Key，空字符串表示删除")
+    apiKey: Optional[str] = Field(None, description="同 api_key（TS 客户端拼写）")
     # 对于 OpenAI 兼容中转等，可同时设置 Base URL（可选）
     base_url: Optional[str] = Field(
         None,
@@ -135,8 +148,17 @@ class SetApiKeyResponse(BaseModel):
 
 
 class SetProviderRequest(BaseModel):
-    """设置当前默认推理后端"""
-    llm_provider: str = Field(..., description="厂商 id，如 ollama / deepseek / stepfun")
+    """设置当前默认推理后端
+
+    TS DTO 字段为 llm_provider；web 前端 ModelConfig 发送 {provider}——
+    双字段兼容（Phase 6 T5：前端可用性优先，记录 API_PARITY D7 模式）。
+    """
+
+    llm_provider: Optional[str] = Field(None, description="厂商 id，如 ollama / deepseek / stepfun")
+    provider: Optional[str] = Field(None, description="同 llm_provider（前端别名）")
+
+    def resolved_provider(self) -> str:
+        return (self.llm_provider or self.provider or "").strip()
 
 
 class SetProviderSettingsRequest(BaseModel):

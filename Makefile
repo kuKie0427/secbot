@@ -1,11 +1,13 @@
-.PHONY: help install build clean test server dev-server cli bootstrap docker-build docker-up docker-down deploy
+.PHONY: help install build build-web dev-web clean test server dev-server cli bootstrap docker-build docker-up docker-down deploy
 
 help:
 	@echo "Hackbot 构建和部署命令"
 	@echo ""
 	@echo "可用命令:"
 	@echo "  make install      - 安装依赖 (使用 uv)"
-	@echo "  make build        - 构建 Python 包"
+	@echo "  make build        - 构建 Python 包（不含前端，先 build-web 可打入 UI）"
+	@echo "  make build-web    - 构建前端并装入 secbot_web/dist（随 wheel 打包）"
+	@echo "  make dev-web      - 前端开发模式（vite :5173，代理 /api → :8000）"
 	@echo "  make clean        - 清理构建文件"
 	@echo "  make test         - 运行测试"
 	@echo "  make bootstrap    - 快捷初始化（优先 uv；无 uv 则创建 .venv + pip 安装）"
@@ -25,6 +27,14 @@ bootstrap:
 
 build:
 	uv run python -m build
+
+build-web:
+	cd web && npm ci && npm run build
+	rm -rf secbot_web/dist
+	cp -R web/dist secbot_web/dist
+
+dev-web:
+	cd web && npm run dev
 
 clean:
 	rm -rf build/ dist/ *.egg-info/

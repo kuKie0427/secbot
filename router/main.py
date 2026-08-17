@@ -2,6 +2,7 @@
 Hackbot FastAPI 服务入口 — 组装所有路由、CORS、uvicorn 入口
 """
 
+import os
 import time
 import uuid
 import shutil
@@ -113,7 +114,59 @@ def create_app() -> FastAPI:
 
         return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
+    _mount_web_dist(application)
+
     return application
+
+
+def _resolve_web_dist() -> Path:
+    """dist 查找顺序：SECBOT_WEB_DIST 覆盖 → 源码仓 web/dist → wheel 内 secbot_web/dist。"""
+    override = os.environ.get("SECBOT_WEB_DIST")
+    if override:
+        return Path(override)
+    repo_root = Path(__file__).resolve().parent.parent
+    candidates = [repo_root / "web" / "dist", repo_root / "secbot_web" / "dist"]
+    try:
+        import secbot_web  # wheel 安装时 dist 随包数据分发
+
+        candidates.append(Path(secbot_web.__file__).parent / "dist")
+    except ImportError:
+        pass
+    for cand in candidates:
+        if (cand / "index.html").is_file():
+            return cand
+    return candidates[0]
+
+
+def _mount_web_dist(application: FastAPI) -> None:
+    """托管 web/dist 静态资源（SPA fallback 到 index.html；对齐 TS Nest ServeStatic）。
+
+    - 路径可用 SECBOT_WEB_DIST 覆盖
+    - dist 不存在时跳过并提示（开发模式由 vite dev server 代理 /api）
+    """
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    dist = _resolve_web_dist()
+    if not (dist / "index.html").is_file():
+        logger.info(f"web/dist 不存在（{dist}），跳过静态托管 — 前端请用 `make dev-web`（vite 代理 /api）或先 `make build-web`")
+        return
+
+    index_html = dist / "index.html"
+    assets = dist / "assets"
+
+    # SPA fallback：非 /api、非 /health、非静态文件的未知路径返回 index.html
+    # （TanStack Router 深链如 /session/xxx 刷新不 404）
+    @application.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        candidate = dist / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(index_html)
+
+    if assets.is_dir():
+        application.mount("/assets", StaticFiles(directory=assets), name="web-assets")
+    logger.info(f"已托管 Web UI: {dist}")
 
 
 # 全局 app 实例（供 uvicorn 直接引用: router.main:app）

@@ -96,3 +96,10 @@ test-reports/
 # 环境变量备份（历史泄露隐患，勿入库；见 Phase 0 记录）
 .env.backup
 *.env.backup
+
+# Web 前端构建产物（dist 不进 git，CI/Makefile 构建；见 docs/DEPLOY_WEB.md）
+# 注意：全局 dist/ 规则已覆盖 web/dist；node_modules 全局忽略
+
+
+# Web 构建增量缓存
+tsconfig.tsbuildinfo

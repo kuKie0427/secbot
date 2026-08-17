@@ -76,10 +76,21 @@ jobs:
         run: |
           python -m utils.release_docs version-docs --changelog CHANGELOG.md --output-dir docs/releases || true
 
-      - name: Build package
+      - name: Build frontend (web/dist → secbot_web/dist, 随 wheel 打包)
         run: |
           python -m pip install --upgrade pip
           python -m pip install build twine
+          if command -v npm >/dev/null 2>&1; then
+            echo "npm available"
+          else
+            sudo apt-get update && sudo apt-get install -y nodejs npm
+          fi
+          cd web && npm ci && npm run build && cd ..
+          rm -rf secbot_web/dist
+          cp -R web/dist secbot_web/dist
+
+      - name: Build package
+        run: |
           python -m build
           python -m twine check dist/*
 

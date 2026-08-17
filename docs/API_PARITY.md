@@ -81,9 +81,13 @@ monitors 7：`POST /monitors`、`GET /monitors`（返回 `{monitors, events}`，
 | D8 | `GET /api/system/log-level` | 无此端点 | 存在（GET/POST） | Python 独有增强，TS 无对应；保留 |
 | D9 | TS `HostInfoDto` 响应字段 camelCase（`hostname` 一致；`macAddress`/`openPorts`） | camelCase | Python 返回 snake_case（`mac_address`/`open_ports`） | **存量差异**：Python web/客户端均消费 snake_case；Phase 6 Web UI 移植时以 TS 前端实际读取字段为准逐个核对 |
 | D10 | MCP 服务端 input schema | 透传工具 schema | 裸 properties 包装为合法 JSON Schema（见 docs/MCP.md） | 有意增强 |
+| D11 | `POST /api/system/config/provider` 请求体 | `{llm_provider}`（SetLlmProviderRequestDto） | `{llm_provider}` 与 `{provider}` 均接受（前端 ModelConfig.tsx 发 `{provider}`；TS web 与 TS 后端本身拼写不一致） | 双字段兼容，见 D7 模式 |
+| D12 | `POST /api/system/config/api-key` 请求体 key 字段 | `{apiKey}`（SetApiKeyRequestDto） | `{api_key}` 与 `{apiKey}` 均接受（前端发 `api_key`） | 同 D11 |
+| D13 | `POST /api/chat` 请求体 | 含 `session_id`/`client_shell`（ChatRequestDto） | Phase 6 起同构（此前缺 `session_id` 会 422） | 对齐修复 |
 
 ## 验证
 
 ```bash
 uv run pytest tests/router/test_phase4_rest.py -q   # 22 tests：五组端点集成测试
+uv run pytest tests/web -q                           # 11 tests：Web 托管 + 前端契约冒烟（需 make build-web）
 ```
