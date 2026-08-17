@@ -7,7 +7,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -250,10 +250,14 @@ class CliEventPrinter:
             tool = d.get("tool", "")
             params = d.get("params", {})
             script = d.get("script", "")
+            from secbot_cli.stream_constants import tool_class
+
+            cls = tool_class(tool)
+            title = {"exploring": "探索", "terminal": "终端"}.get(cls, "工具执行")
             self._registry.render(
                 RenderBlock(
                     kind="action",
-                    title="工具执行",
+                    title=title,
                     body="",
                     meta={
                         "tool": tool,
@@ -267,6 +271,12 @@ class CliEventPrinter:
         elif t == EventType.EXEC_RESULT:
             tool = d.get("tool", "")
             success = d.get("success", True)
+            from secbot_cli.stream_constants import tool_class
+
+            # TRANSIENT 工具：完成后收起、不强调展示（对齐 TS TRANSIENT_TOOLS）
+            if tool_class(tool) == "transient":
+                self.console.print(f"[dim]✓ {tool} 完成（输出已收起）[/dim]")
+                return
             self._registry.render(
                 RenderBlock(
                     kind="action",
@@ -517,33 +527,303 @@ def _render_startup_screen(
     console.print()
 
 
-def _slash_command_specs() -> list[tuple[str, str]]:
-    """CLI 内置 slash 命令说明（用于 / 自动提示与 /help 输出）。"""
-    return [
-        ("/help", "显示命令列表"),
-        ("/model", "选择/配置推理后端与模型"),
-        ("/agent", "切换智能体（hackbot / superhackbot）"),
-        ("/ask", "仅问答不执行工具（兼容旧命令）"),
-        ("/plan", "仅生成计划（不执行）"),
-        ("/start", "执行计划"),
-        ("/accept", "确认敏感操作（superhackbot）"),
-        ("/reject", "拒绝敏感操作（superhackbot）"),
-        ("/exit", "退出（也可用 exit/quit）"),
-    ]
+def _build_registry(console: Console, state: "_ReplState"):
+    """注册表 + 全部命令 handler（单一事实源：补全/帮助/分发同源）。
+
+    命令名/别名/描述元数据来自 build_default_registry；此处仅注入 handler 闭包。
+    先构建一个临时注册表供 /help 引用，再以 handlers 重建并复用同一 render_help。
+    """
+    from secbot_cli.commands import (
+        CommandResult,
+        build_default_registry,
+        parse_option_value,
+        parse_option_values,
+        split_input,
+    )
+
+    registry = build_default_registry({})
+
+    async def _help(rest: List[str]) -> "CommandResult":
+        registry.render_help(console)
+        _render_tools_overview(console)
+        return CommandResult()
+
+    async def _model(rest: List[str]) -> "CommandResult":
+        _run_model_selector_inline(console)
+        return CommandResult()
+
+    async def _agent(rest: List[str]) -> "CommandResult":
+        arg = (rest[0] if rest else "").lower()
+        if arg in ("super", "superhackbot"):
+            state.agent_type = "superhackbot"
+        elif arg in ("default", "secbot-cli", ""):
+            state.agent_type = "secbot-cli"
+        else:
+            console.print(f"[yellow]未知 agent: {arg}（可用 super / default）[/yellow]")
+            return CommandResult()
+        console.print(f"[green]已切换智能体: {state.agent_type}[/green]")
+        return CommandResult()
+
+    async def _ask_task(rest: List[str]) -> "CommandResult":
+        # 对齐 TS slash.ts:76-95：/ask /task 均按 agent 模式发送余文，不切 QA
+        message = " ".join(rest)
+        if not message:
+            console.print("[yellow]用法: /ask <文本>（余文按 agent 模式发送）[/yellow]")
+            return CommandResult()
+        return CommandResult(chat_message=message, chat_mode="agent")
+
+    async def _new_session(rest: List[str]) -> "CommandResult":
+        state.session_manager = _create_session_manager(console)
+        console.print("[green]已新建空白会话（上下文已隔离）[/green]")
+        return CommandResult()
+
+    async def _sessions(rest: List[str]) -> "CommandResult":
+        from secbot_agent.controller.session_registry import list_sessions
+
+        sessions = list_sessions()
+        if not sessions:
+            console.print("[yellow]当前无登记会话（chat 交互结束后自动登记）[/yellow]")
+            return CommandResult()
+        from rich.table import Table
+
+        table = Table(title="Sessions", border_style="bright_blue")
+        table.add_column("#", justify="right")
+        table.add_column("session_id")
+        table.add_column("conn")
+        table.add_column("target")
+        table.add_column("status")
+        for i, s in enumerate(sessions, 1):
+            table.add_row(str(i), s.get("session_id", ""), s.get("connection_type", ""),
+                          s.get("target_ip", "") or "-", s.get("status", ""))
+        console.print(table)
+        choice = console.input("[dim]切换到 #（回车跳过）: [/dim]").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(sessions):
+            console.print(f"[green]会话 {sessions[int(choice)-1]['session_id']} 的历史见 /api/sessions；"
+                          f"CLI 当前对话上下文不变[/green]")
+        return CommandResult()
+
+    async def _list_agents(rest: List[str]) -> "CommandResult":
+        agents = state.session_manager.agents or get_agents()
+        lines = []
+        for type_, inst in agents.items():
+            name = getattr(inst, "name", type_)
+            desc = (getattr(inst, "description", "") or "").strip().splitlines()
+            lines.append(f"{type_}: {name} — {desc[0] if desc else ''}")
+        console.print(Panel("\n".join(lines) or "(无)", title="智能体列表", border_style="bright_blue"))
+        return CommandResult()
+
+    async def _tools(rest: List[str]) -> "CommandResult":
+        _render_tools_browser(console)
+        return CommandResult()
+
+    async def _skills(rest: List[str]) -> "CommandResult":
+        from secbot_agent.skills.service import SkillService
+
+        skills = SkillService().list_skills()
+        if not skills:
+            console.print("[yellow]未发现 Skills（workspace/skills/ 下可放置）[/yellow]")
+            return CommandResult()
+        lines = []
+        for s in skills:
+            lines.append(f"{s.get('slug', '')} [{s.get('scope', '')}] — {s.get('description', '')}")
+        console.print(Panel("\n".join(lines), title="Skills", border_style="bright_blue"))
+        return CommandResult()
+
+    async def _skill(rest: List[str]) -> "CommandResult":
+        from secbot_agent.skills.service import SkillService, SkillNotFound
+
+        name = rest[0] if rest else ""
+        if not name:
+            console.print("用法: /skill <name>")
+            return CommandResult()
+        try:
+            skill = SkillService().get_skill(name)
+        except SkillNotFound:
+            console.print(f"[yellow]Skill 不存在: {name}[/yellow]")
+            return CommandResult()
+        text = "\n".join([
+            f"# {skill.get('slug', name)}", "",
+            skill.get("description", ""), "",
+            f"triggers: {', '.join(skill.get('triggers', []) or [])}",
+            f"tags: {', '.join(skill.get('tags', []) or [])}", "",
+            skill.get("body", ""),
+        ])
+        console.print(Panel(text, title=f"Skill · {name}", border_style="bright_blue"))
+        return CommandResult()
+
+    async def _create_skill(rest: List[str]) -> "CommandResult":
+        from secbot_agent.skills.service import SkillService, SkillAlreadyExists
+
+        parts = split_input(f"/create-skill {' '.join(rest)}")
+        if not rest or not rest[0]:
+            console.print("用法: /create-skill <name> [--description 文本] [--trigger xxx] [--tag xxx] [--prerequisite xxx] [--author xxx]")
+            return CommandResult()
+        name = rest[0]
+        payload = {
+            "name": name,
+            "description": parse_option_value(parts, "--description"),
+            "author": parse_option_value(parts, "--author"),
+            "tags": parse_option_values(parts, "--tag"),
+            "triggers": parse_option_values(parts, "--trigger"),
+            "prerequisites": parse_option_values(parts, "--prerequisite"),
+        }
+        try:
+            svc = SkillService()
+            created = svc.create_skill({k: v for k, v in payload.items() if v})
+        except SkillAlreadyExists:
+            console.print(f"[yellow]Skill 已存在: {name}[/yellow]")
+            return CommandResult()
+        except Exception as e:
+            console.print(f"[red]创建失败: {e}[/red]")
+            return CommandResult()
+        console.print(f"[green]已创建 skill {created['slug']}[/green]\n"
+                      f"路径: {created['relativeDir']}\n描述: {created['description']}")
+        return CommandResult()
+
+    async def _log_level(rest: List[str]) -> "CommandResult":
+        from utils.logger import set_log_level
+
+        arg = (rest[0] if rest else "").upper()
+        levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if arg in levels:
+            set_log_level(arg)
+            console.print(f"[green]日志级别: {arg}[/green]")
+            return CommandResult()
+        console.print("选择日志级别: " + " ".join(f"[{i+1}]{lv}" for i, lv in enumerate(levels)))
+        choice = console.input("[dim]选择: [/dim]").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(levels):
+            set_log_level(levels[int(choice) - 1])
+            console.print(f"[green]日志级别: {levels[int(choice)-1]}[/green]")
+        return CommandResult()
+
+    async def _logs(rest: List[str]) -> "CommandResult":
+        import os
+
+        cwd = os.getcwd()
+        targets = [
+            ("BACKEND-RUNTIME", os.path.join(cwd, "logs", "backend-runtime.log")),
+            ("CLI-RUNTIME", os.path.join(cwd, "logs", "cli-runtime.log")),
+        ]
+        sections = []
+        for title, path in targets:
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    lines = [ln for ln in f.read().splitlines() if ln.strip()]
+                tail = lines[-120:] if len(lines) > 120 else lines
+                sections.append(f"## {title}\n" + ("\n".join(tail) or "(empty)"))
+            except OSError:
+                sections.append(f"## {title}\n(log file not found — 运行产生日志后生成)")
+        console.print(Panel("\n\n".join(sections), title="运行日志（最近 120 行）", border_style="bright_blue"))
+        return CommandResult()
+
+    async def _accept(rest: List[str]) -> "CommandResult":
+        await _route_confirmation(state, True, console)
+        return CommandResult()
+
+    async def _reject(rest: List[str]) -> "CommandResult":
+        await _route_confirmation(state, False, console)
+        return CommandResult()
+
+    async def _exit(rest: List[str]) -> "CommandResult":
+        return CommandResult(exit_repl=True)
+
+    handlers = {
+        "/help": _help,
+        "/model": _model,
+        "/agent": _agent,
+        "/ask": _ask_task,
+        "/task": _ask_task,
+        "/new-session": _new_session,
+        "/sessions": _sessions,
+        "/list-agents": _list_agents,
+        "/tools": _tools,
+        "/skills": _skills,
+        "/skill": _skill,
+        "/create-skill": _create_skill,
+        "/log-level": _log_level,
+        "/logs": _logs,
+        "/accept": _accept,
+        "/reject": _reject,
+        "/exit": _exit,
+    }
+    return build_default_registry(handlers)
 
 
-def _render_slash_help(console: Console) -> None:
-    rows = _slash_command_specs()
-    grid = Table.grid(padding=(0, 3))
-    grid.add_column(justify="left")
-    grid.add_column(justify="left")
-    for cmd, desc in rows:
-        grid.add_row(Text(cmd, style="bold cyan"), Text(desc, style="white"))
-    console.print(Panel(grid, title="命令列表", border_style="bright_blue"))
+async def _route_confirmation(state: "_ReplState", accepted: bool, console: Console) -> None:
+    """/accept /reject → SecurityReActAgent.handle_accept（superhackbot 确认流闭环）。"""
+    agents = state.session_manager.agents or {}
+    agent = agents.get("superhackbot") or agents.get(state.agent_type)
+    handler = getattr(agent, "handle_accept", None)
+    inner = getattr(agent, "_default_agent", None)
+    if handler is None and inner is not None:
+        handler = getattr(inner, "handle_accept", None)
+        agent = inner
+    if handler is None:
+        console.print("[yellow]当前智能体不支持确认流（需 superhackbot）[/yellow]")
+        return
+    try:
+        # handle_accept(choice: int)：1=接受首个方案；拒绝走 confirmation.reject
+        if accepted:
+            result = await handler(1)
+        else:
+            confirmation = getattr(agent, "confirmation", None)
+            if confirmation is None or not confirmation.is_pending():
+                result = "当前没有待确认的操作。"
+            else:
+                confirmation.reject()
+                result = "已拒绝待确认操作。"
+        label = "已确认" if accepted else "已拒绝"
+        console.print(f"[green]{label}: {result if result else 'ok'}[/green]")
+    except Exception as e:
+        console.print(f"[red]确认流调用失败: {e}[/red]")
 
 
-def _build_prompt_session() -> Optional["PromptSession"]:
-    """创建支持补全的 PromptSession；不可用则返回 None。"""
+def _render_tools_overview(console: Console) -> None:
+    """/help 附带工具概览——进程内聚合（离线可用，不经 HTTP）。"""
+    try:
+        from router.tools import _CATEGORIES
+
+        lines = ["", "SECBOT 集成的安全工具"]
+        total = 0
+        for cat_id, cat_name, tool_list in _CATEGORIES:
+            names = [t.name for t in tool_list]
+            total += len(names)
+            preview = ", ".join(names[:6]) + ("…" if len(names) > 6 else "")
+            lines.append(f"【{cat_name}】{len(names)} 个 — {preview}")
+        lines.insert(1, f"总计 {total} 个")
+        console.print(Text("\n".join(lines), style="dim"))
+    except Exception:
+        pass
+
+
+def _render_tools_browser(console: Console) -> None:
+    """分类工具浏览（对齐 TS /tools 输出形态）。"""
+    try:
+        from router.tools import _CATEGORIES
+    except Exception as e:
+        console.print(f"[red]工具目录不可用: {e}[/red]")
+        return
+    lines = ["SECBOT 内置工具"]
+    total = 0
+    for cat_id, cat_name, tool_list in _CATEGORIES:
+        total += len(tool_list)
+        lines += ["", f"【{cat_name}】{len(tool_list)} 个"]
+        for t in tool_list:
+            lines.append(f"  {t.name:<24} — {t.description}")
+    lines.insert(1, f"总计: {total} 个")
+    console.print(Panel("\n".join(lines), title="工具目录", border_style="bright_blue"))
+
+
+class _ReplState:
+    """REPL 可变状态（agent 切换 / 会话重建）。"""
+
+    def __init__(self, session_manager: SessionManager, agent_type: Optional[str]):
+        self.session_manager = session_manager
+        self.agent_type = agent_type
+
+
+def _build_prompt_session(history_path) -> Optional["PromptSession"]:
+    """创建支持补全 + 跨会话历史持久化的 PromptSession；不可用则返回 None。"""
     if PromptSession is None or WordCompleter is None:
         return None
     try:
@@ -552,9 +832,20 @@ def _build_prompt_session() -> Optional["PromptSession"]:
     except Exception:
         return None
 
-    commands = [c for c, _ in _slash_command_specs()]
+    commands = _active_registry.completions() if _active_registry else ["/help"]
     completer = WordCompleter(commands, ignore_case=True, match_middle=True)
-    return PromptSession(completer=completer, complete_while_typing=True)
+    kwargs = {}
+    try:
+        from prompt_toolkit.history import FileHistory
+
+        kwargs["history"] = FileHistory(str(history_path))
+    except Exception:
+        pass
+    return PromptSession(completer=completer, complete_while_typing=True, **kwargs)
+
+
+# 当前 REPL 绑定的注册表（补全列表生成时可见）
+_active_registry = None
 
 
 async def run_interactive(
@@ -562,24 +853,30 @@ async def run_interactive(
     agent_type: Optional[str] = None,
     mode: str = "agent",
 ) -> None:
-    """交互式 REPL：循环读取用户输入并处理。"""
-    session_manager = _create_session_manager(console)
-    _render_startup_screen(console, session_manager, agent_type)
-    pt_session = _build_prompt_session()
+    """交互式 REPL：命令注册表分发 + prompt_toolkit 补全/历史。"""
+    global _active_registry
+
+    state = _ReplState(_create_session_manager(console), agent_type)
+    _render_startup_screen(console, state.session_manager, agent_type)
+
+    registry = _build_registry(console, state)
+    _active_registry = registry
+
+    import os
+    history_path = os.path.expanduser("~/.secbot-cli/history")
+    os.makedirs(os.path.dirname(history_path), exist_ok=True)
+    pt_session = _build_prompt_session(history_path)
 
     while True:
         try:
             if pt_session is not None:
-                # prompt_toolkit 提供候选弹窗与 Tab 补全（在 asyncio 事件循环内必须用 prompt_async）
                 try:
                     if hasattr(pt_session, "prompt_async"):
                         user_input = (await pt_session.prompt_async(">>> ") or "").strip()
                     else:
-                        # 极端情况下 prompt_toolkit 版本过旧，没有 async API，则降级
                         user_input = console.input("[bold green]>>> [/bold green]").strip()
                         pt_session = None
                 except Exception:
-                    # prompt_toolkit 在某些环境下可能初始化失败；降级到 Rich 输入
                     user_input = console.input("[bold green]>>> [/bold green]").strip()
                     pt_session = None
             else:
@@ -590,24 +887,49 @@ async def run_interactive(
 
         if not user_input:
             continue
-        if user_input == "/":
-            # 对齐“输入 / 后自动弹出”：无法在 Rich 原生 input 中做到弹窗，
-            # 但至少在用户敲回车时给出命令列表，并提示可用 Tab 补全（若启用 prompt_toolkit）。
-            _render_slash_help(console)
-            continue
-        if user_input.lower() in ("/help", "help"):
-            _render_slash_help(console)
-            continue
-        if user_input.lower() in ("exit", "quit", "/exit", "/quit"):
+
+        low = user_input.lower()
+        if low in ("exit", "quit"):
             console.print("[dim]再见！[/dim]")
             break
-        if user_input.lower() in ("/model", "model"):
-            _run_model_selector_inline(console)
+
+        if user_input.startswith("/"):
+            command = registry.lookup(user_input)
+            if command is None:
+                if user_input == "/":
+                    registry.render_help(console)
+                    continue
+                console.print(f"[yellow]未知命令: {user_input.split()[0]}（/help 查看命令表）[/yellow]")
+                continue
+            if command.handler is None:
+                console.print(f"[yellow]命令未实现: {command.name}[/yellow]")
+                continue
+            from secbot_cli.commands import split_input
+
+            parts = split_input(user_input)
+            result = await command.handler(parts[1:])
+            if result.exit_repl:
+                console.print("[dim]再见！[/dim]")
+                break
+            if result.chat_message:
+                try:
+                    await _run_single_message(
+                        state.session_manager,
+                        result.chat_message,
+                        agent_type=state.agent_type,
+                        mode=result.chat_mode,
+                    )
+                except KeyboardInterrupt:
+                    console.print("\n[yellow]已中断当前任务[/yellow]")
+                except Exception as e:
+                    console.print(f"[bold red]处理出错: {e}[/bold red]")
+                    logger.exception("CLI 交互错误")
+            console.print()
             continue
 
         try:
             await _run_single_message(
-                session_manager, user_input, agent_type=agent_type, mode=mode
+                state.session_manager, user_input, agent_type=state.agent_type, mode=mode
             )
         except KeyboardInterrupt:
             console.print("\n[yellow]已中断当前任务[/yellow]")

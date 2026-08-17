@@ -69,7 +69,7 @@ async def add_command(session_id: str, body: AddCommandRequest):
     if session_id not in registry.sessions:
         return {"success": False, "error": f"Session not found: {session_id}"}
 
-    # 意有增强：result 为空时通过 terminal_session 池真实执行回填
+    # 有意增强：result 为空时通过 terminal_session 池真实执行回填
     result = body.result
     if not result:
         result = await session_registry.execute_via_terminal(session_id, body.command)
