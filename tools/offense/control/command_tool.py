@@ -7,6 +7,10 @@ import subprocess
 import sys
 from typing import Optional
 from tools.base import BaseTool, ToolResult
+from tools.offense.control.shell_command_guard import (
+    execute_command_shell_profile,
+    validate_command_against_shell,
+)
 from utils.logger import logger
 
 
@@ -58,6 +62,10 @@ class CommandTool(BaseTool):
         """
         try:
             command = _adapt_command_for_platform(command)
+            # spawn 前守卫：方言与真实执行 shell 不匹配时返回结构化指导（对齐 TS execute-command）
+            guard_error = validate_command_against_shell(command, execute_command_shell_profile())
+            if guard_error:
+                return ToolResult(success=False, result=None, error=guard_error)
             # 日志中不打印可能包含密码的 stdin_data
             logger.info(f"执行命令: {command}")
 
@@ -74,15 +82,17 @@ class CommandTool(BaseTool):
 
             if sys.platform == "win32":
                 if shell:
-                    cmd_command = f'cmd /c "{command}"'
+                    # 对齐 TS：cmd /d /s /c（禁 AutoRun、延迟展开、命令末引号剥离后执行）
+                    cmd_command = f'cmd /d /s /c "{command}"'
                     result = subprocess.run(cmd_command, shell=False, **run_kw)
                 else:
                     result = subprocess.run(command.split(), **run_kw)
             else:
+                sh = __import__("os").environ.get("SHELL") or ("/bin/zsh" if sys.platform == "darwin" else "/bin/bash")
                 result = subprocess.run(
                     command,
                     shell=shell,
-                    executable="/bin/bash" if sys.platform != "darwin" else "/bin/zsh",
+                    executable=f"{sh} -lc".split()[0] if not shell else sh,
                     **run_kw,
                 )
 
@@ -138,7 +148,12 @@ class CommandTool(BaseTool):
                 "cwd": {
                     "type": "string",
                     "description": "工作目录（可选）"
+                },
+                "stdin_data": {
+                    "type": "string",
+                    "description": "可选，传入标准输入（如 sudo 密码），不写入命令行以保证安全"
                 }
-            }
+            },
+            "required": ["command"]
         }
 

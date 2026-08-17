@@ -4,14 +4,16 @@
 from tools.cloud.cloud_metadata_tool import CloudMetadataTool
 from tools.cloud.s3_bucket_tool import S3BucketEnumTool
 from tools.cloud.container_info_tool import ContainerInfoTool
+from tools.cloud.cloud_bucket_enum_tool import CloudBucketEnumTool
 
 CLOUD_TOOLS = [
     CloudMetadataTool(),
     S3BucketEnumTool(),
     ContainerInfoTool(),
+    CloudBucketEnumTool(),
 ]
 
 __all__ = [
-    "CloudMetadataTool", "S3BucketEnumTool", "ContainerInfoTool",
+    "CloudMetadataTool", "S3BucketEnumTool", "ContainerInfoTool", "CloudBucketEnumTool",
     "CLOUD_TOOLS",
 ]

@@ -66,6 +66,8 @@ dependencies = [
     "sse-starlette>=1.8.0",
     "langgraph>=0.2.0",
     "ddgs>=9.0.0",
+    "dnspython>=2.8.0",
+    "ldap3>=2.9.1",
 ]
 
 [project.optional-dependencies]
@@ -153,3 +155,8 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.3",
+]

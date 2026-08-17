@@ -6,6 +6,7 @@ from tools.defense.self_vuln_scan_tool import SelfVulnScanTool
 from tools.defense.network_analyze_tool import NetworkAnalyzeTool
 from tools.defense.intrusion_detect_tool import IntrusionDetectTool
 from tools.defense.system_info_tool import SystemInfoTool
+from tools.defense.container_escape_check_tool import ContainerEscapeCheckTool
 
 DEFENSE_TOOLS = [
     DefenseScanTool(),
@@ -13,6 +14,7 @@ DEFENSE_TOOLS = [
     NetworkAnalyzeTool(),
     IntrusionDetectTool(),
     SystemInfoTool(),
+    ContainerEscapeCheckTool(),
 ]
 
 __all__ = [

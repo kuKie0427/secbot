@@ -8,6 +8,7 @@ from tools.pentest.security import (
     CORE_SECURITY_TOOLS,
     ADVANCED_SECURITY_TOOLS,
     ALL_SECURITY_TOOLS,
+    SCANNER_SECURITY_TOOLS,
 )
 from tools.pentest.network import NETWORK_TOOLS
 from tools.defense import DEFENSE_TOOLS
@@ -17,15 +18,18 @@ from tools.osint import OSINT_TOOLS
 from tools.protocol import PROTOCOL_TOOLS
 from tools.reporting import REPORTING_TOOLS
 from tools.cloud import CLOUD_TOOLS
-from tools.offense.control import TerminalSessionTool
+from tools.offense.control import TerminalSessionTool, InstallToolTool
 from secbot_agent.crawler import CrawlerTool
 from tools.web_research import WEB_RESEARCH_TOOLS
+from tools.skills import SKILLS_TOOLS
+from tools.mcp import MCP_TOOLS
 
 router = APIRouter(prefix="/api/tools", tags=["Tools"])
 
 # 工具种类与对应列表（用于分类统计）
 _CATEGORIES = [
     ("core", "核心安全", CORE_SECURITY_TOOLS),
+    ("scanner", "扫描器", SCANNER_SECURITY_TOOLS),
     ("network", "网络探测", NETWORK_TOOLS),
     ("defense", "防御监控", DEFENSE_TOOLS),
     ("utility", "实用工具", UTILITY_TOOLS),
@@ -34,8 +38,10 @@ _CATEGORIES = [
     ("protocol", "协议探测", PROTOCOL_TOOLS),
     ("reporting", "报告", REPORTING_TOOLS),
     ("cloud", "云安全", CLOUD_TOOLS),
-    ("control", "系统控制", [TerminalSessionTool(), CrawlerTool()]),
+    ("control", "系统控制", [TerminalSessionTool(), CrawlerTool(), InstallToolTool()]),
     ("web_research", "Web 研究", WEB_RESEARCH_TOOLS),
+    ("skills", "Skills", SKILLS_TOOLS),
+    ("mcp", "MCP", MCP_TOOLS),
     ("advanced", "高级（需确认）", ADVANCED_SECURITY_TOOLS),
 ]
 

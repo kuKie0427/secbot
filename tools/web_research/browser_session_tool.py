@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 from urllib.parse import urljoin
 
 import httpx
@@ -22,6 +22,11 @@ class _BrowserState:
     notes: List[str] = field(default_factory=list)
     last_search_results: List[Dict[str, str]] = field(default_factory=list)
     stash_text: str = ""
+    hops: int = 0
+
+
+MAX_HOPS_PER_SESSION = 25  # 对齐 TS browser-session.tool.ts
+RESPECTFUL_USER_AGENT = "Mozilla/5.0 (compatible; SecBot-Explore/1.0)"
 
 
 class BrowserSessionTool(BaseTool):
@@ -35,11 +40,12 @@ class BrowserSessionTool(BaseTool):
     def __init__(self):
         super().__init__(
             name="browser_session",
-            description=(
-                "类人只读浏览。参数: session_id(必填), "
-                "action(open|follow|back|search|read|note|close), "
-                "url( open/follow), query(search), text(note), max_chars(read,默认8000)。"
-            ),
+        description=(
+            "类人只读浏览。参数: session_id(必填), "
+            "action(open|follow|back|search|read|note|status|close), "
+            "url(open/follow), query(search), text(note), max_chars(read,默认8000)。"
+            "每 session 最多 25 跳；遵守 robots.txt。"
+        ),
         )
         self._sessions: Dict[str, _BrowserState] = {}
 
@@ -126,6 +132,18 @@ class BrowserSessionTool(BaseTool):
                     },
                 )
 
+            if action == "status":
+                return ToolResult(
+                    success=True,
+                    result={
+                        "url": st.url,
+                        "hops": st.hops,
+                        "hops_remaining": MAX_HOPS_PER_SESSION - st.hops,
+                        "history": list(st.history[-10:]),
+                        "notes_count": len(st.notes),
+                    },
+                )
+
             if action == "note":
                 note = (kwargs.get("text") or "").strip()
                 if note:
@@ -144,15 +162,56 @@ class BrowserSessionTool(BaseTool):
     async def _navigate(
         self, st: _BrowserState, url: str, push: bool
     ) -> ToolResult:
+        # hop 上限对齐 TS：open/follow 各消耗一跳，back 不消耗
+        if st.hops >= MAX_HOPS_PER_SESSION:
+            return ToolResult(
+                success=False, result=None,
+                error=f"已达最大跳数 {MAX_HOPS_PER_SESSION}",
+            )
+        allowed = await self._robots_allows(url)
+        if allowed is False:
+            return ToolResult(
+                success=False, result=None,
+                error=f"robots.txt 禁止抓取: {url}",
+            )
         text, title = await self._fetch_text(url)
         st.url = url
+        st.hops += 1
         if push:
             if not st.history or st.history[-1] != url:
                 st.history.append(url)
         return ToolResult(
             success=True,
-            result={"url": url, "title": title, "preview": text[:2500]},
+            result={"url": url, "title": title, "preview": text[:2500], "hops": st.hops},
         )
+
+    async def _robots_allows(self, url: str) -> bool:
+        """robots.txt 感知：Disallow 命中则拒绝（网络失败时放行，保持可用性）。"""
+        import urllib.parse
+
+        parsed = urllib.parse.urlparse(url)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        robots_url = origin + "/robots.txt"
+        try:
+            async with httpx.AsyncClient(
+                follow_redirects=True, timeout=10.0, headers={"User-Agent": RESPECTFUL_USER_AGENT}
+            ) as client:
+                resp = await client.get(robots_url)
+            if resp.status_code != 200:
+                return True
+            path = parsed.path or "/"
+            for line in resp.text.splitlines():
+                line = line.strip()
+                if not line.startswith("Disallow:"):
+                    continue
+                disallow = line.split(":", 1)[1].strip()
+                if not disallow:
+                    continue
+                if disallow == "/" or path.startswith(disallow.rstrip("*")):
+                    return False
+            return True
+        except Exception:
+            return True
 
     async def _fetch_text(self, url: str) -> tuple[str, str]:
         headers = {"User-Agent": "Mozilla/5.0 (compatible; SecBot-Explore/1.0)"}

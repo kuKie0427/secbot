@@ -10,6 +10,8 @@ from tools.web.cors_check_tool import CorsCheckTool
 from tools.web.jwt_analyze_tool import JwtAnalyzeTool
 from tools.web.param_fuzzer_tool import ParamFuzzerTool
 from tools.web.ssrf_detect_tool import SsrfDetectTool
+from tools.web.wappalyzer_tool import WappalyzerTool
+from tools.web.api_schema_scan_tool import ApiSchemaScanTool
 
 WEB_TOOLS = [
     DirBruteforceTool(),
@@ -20,11 +22,14 @@ WEB_TOOLS = [
     JwtAnalyzeTool(),
     ParamFuzzerTool(),
     SsrfDetectTool(),
+    WappalyzerTool(),
+    ApiSchemaScanTool(),
 ]
 
 __all__ = [
     "DirBruteforceTool", "WafDetectTool", "TechDetectTool",
     "HeaderAnalyzeTool", "CorsCheckTool", "JwtAnalyzeTool",
     "ParamFuzzerTool", "SsrfDetectTool",
+    "WappalyzerTool", "ApiSchemaScanTool",
     "WEB_TOOLS",
 ]

@@ -33,6 +33,8 @@ MODEL_WINDOW_TABLE: Dict[str, ModelWindow] = {
     "o3-mini": ModelWindow(200_000, 32_000, 2000),
     "claude-3-5-sonnet": ModelWindow(200_000, 8000, 2000),
     "claude-3-7-sonnet": ModelWindow(200_000, 8000, 2000),
+    "claude-sonnet-4": ModelWindow(200_000, 8000, 2000),
+    "claude-opus-4": ModelWindow(200_000, 8000, 2000),
     "claude-3-opus": ModelWindow(200_000, 4000, 2000),
     "claude-3-haiku": ModelWindow(200_000, 4000, 2000),
     "deepseek-chat": ModelWindow(128_000, 4000, 2000),
