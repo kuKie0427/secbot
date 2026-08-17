@@ -3,6 +3,7 @@
 """
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from tools.pentest.security import (
     CORE_SECURITY_TOOLS,
@@ -77,4 +78,27 @@ async def list_tools():
         "advanced_count": advanced_count,
         "categories": categories_out,
         "tools": tools_flat,
+    }
+
+
+class ExecuteToolRequest(BaseModel):
+    tool: str
+    params: dict = {}
+
+
+@router.post("/execute", summary="执行工具")
+async def execute_tool(body: ExecuteToolRequest):
+    """对齐 TS tools.controller POST /api/tools/execute：按名执行，未知工具返回结构化错误。"""
+    seen = {}
+    for _cat_id, _cat_name, tool_list in _CATEGORIES:
+        for t in tool_list:
+            seen.setdefault(t.name, t)
+    tool = seen.get(body.tool)
+    if tool is None:
+        return {"success": False, "result": None, "error": f"Tool not found: {body.tool}"}
+    result = await tool.execute(**(body.params or {}))
+    return {
+        "success": result.success,
+        "result": result.result,
+        "error": result.error,
     }

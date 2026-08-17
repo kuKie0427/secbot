@@ -148,18 +148,14 @@ class RealtimeCrawler:
                 await asyncio.sleep(task.interval)
 
     async def start(self):
-        """启动实时监控"""
+        """启动实时监控（中央循环，对齐 TS monitorLoop：每秒扫描，自动纳入新增任务）"""
         if self.running:
             logger.warning("实时爬虫已在运行")
             return
 
         self.running = True
         logger.info("启动实时爬虫监控")
-
-        # 为每个任务创建监控循环
-        for task_id in self.tasks:
-            handle = asyncio.create_task(self._monitor_loop(task_id))
-            self._task_handles.append(handle)
+        self._central_handle = asyncio.create_task(self._central_loop())
 
     async def stop(self):
         """停止实时监控"""
@@ -173,9 +169,30 @@ class RealtimeCrawler:
         for handle in self._task_handles:
             handle.cancel()
 
+        central = getattr(self, "_central_handle", None)
+        if central:
+            central.cancel()
+
         # 等待所有任务完成
-        await asyncio.gather(*self._task_handles, return_exceptions=True)
+        handles = [*self._task_handles]
+        if central:
+            handles.append(central)
+        if handles:
+            await asyncio.gather(*handles, return_exceptions=True)
         self._task_handles.clear()
+        self._central_handle = None
+
+    async def _central_loop(self):
+        """中央监控循环：每秒扫描全部任务，到期即检查（对齐 TS）"""
+        while self.running:
+            now = datetime.now()
+            for task_id, task in list(self.tasks.items()):
+                if task.last_check:
+                    due = task.last_check + timedelta(seconds=task.interval)
+                    if now < due:
+                        continue
+                await self._check_url(task)
+            await asyncio.sleep(1)
 
     async def check_once(self, task_id: str) -> bool:
         """立即检查一次（不等待间隔）"""

@@ -21,6 +21,23 @@ class RememberRequest(BaseModel):
     metadata: Dict[str, Any] = {}
 
 
+class DistillConversationRequest(BaseModel):
+    conversation: list = []
+    summary: str = ""
+
+
+class AddEpisodeRequest(BaseModel):
+    event: str
+    outcome: str
+    target: str = ""
+
+
+class AddKnowledgeRequest(BaseModel):
+    fact: str
+    category: str = "general"
+    importance: float = 0.5
+
+
 class RecallRequest(BaseModel):
     query: str = ""
     memory_type: Optional[str] = None
@@ -46,6 +63,27 @@ async def remember(body: RememberRequest):
         body.content, body.memory_type, body.importance, **body.metadata
     )
     return {"ok": True}
+
+
+@router.post("/distill", summary="从对话蒸馏记忆")
+async def distill(body: DistillConversationRequest):
+    mgr = get_memory_manager()
+    await mgr.distill_from_conversation(body.conversation, body.summary)
+    return {"success": True}
+
+
+@router.post("/episode", summary="添加事件记忆")
+async def add_episode(body: AddEpisodeRequest):
+    mgr = get_memory_manager()
+    await mgr.add_episode(body.event, body.outcome, body.target)
+    return {"success": True}
+
+
+@router.post("/knowledge", summary="添加知识")
+async def add_knowledge(body: AddKnowledgeRequest):
+    mgr = get_memory_manager()
+    await mgr.add_knowledge(body.fact, body.category, body.importance)
+    return {"success": True}
 
 
 @router.post("/recall", summary="召回记忆")

@@ -46,8 +46,10 @@ class SessionManager:
         if session_id in self.sessions:
             self.sessions[session_id]["last_activity"] = datetime.now().isoformat()
 
-    def add_command(self, session_id: str, command: str, result: Dict):
-        """记录执行的命令"""
+    def add_command(self, session_id: str, command: str, result: Dict) -> bool:
+        """记录执行的命令（对齐 TS：返回是否存在该会话）"""
+        if session_id not in self.sessions:
+            return False
         if session_id in self.sessions:
             self.sessions[session_id]["commands_executed"].append({
                 "command": command,
@@ -55,9 +57,12 @@ class SessionManager:
                 "timestamp": datetime.now().isoformat()
             })
             self.update_session_activity(session_id)
+            return True
 
-    def add_file_transfer(self, session_id: str, transfer_type: str, local_path: str, remote_path: str, result: Dict):
-        """记录文件传输"""
+    def add_file_transfer(self, session_id: str, transfer_type: str, local_path: str, remote_path: str, result: Dict) -> bool:
+        """记录文件传输（对齐 TS：返回是否存在该会话）"""
+        if session_id not in self.sessions:
+            return False
         if session_id in self.sessions:
             self.sessions[session_id]["files_transferred"].append({
                 "type": transfer_type,  # upload or download
@@ -67,13 +72,16 @@ class SessionManager:
                 "timestamp": datetime.now().isoformat()
             })
             self.update_session_activity(session_id)
+            return True
 
-    def close_session(self, session_id: str):
-        """关闭会话"""
+    def close_session(self, session_id: str) -> bool:
+        """关闭会话（对齐 TS：返回是否存在该会话）"""
         if session_id in self.sessions:
             self.sessions[session_id]["status"] = "closed"
             self.sessions[session_id]["closed_at"] = datetime.now().isoformat()
             logger.info(f"关闭会话: {session_id}")
+            return True
+        return False
 
     def list_sessions(self, status: Optional[str] = None) -> List[Dict]:
         """列出会话"""

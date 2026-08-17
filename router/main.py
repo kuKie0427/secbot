@@ -20,6 +20,8 @@ from router.database import router as database_router
 from router.tools import router as tools_router
 from router.memory import router as memory_router
 from router.skills import router as skills_router
+from router.crawler import router as crawler_router
+from router.vuln_db import router as vuln_db_router
 from router.dependencies import get_db_manager
 from utils.error_mapper import map_exception_to_client
 from utils.logger import logger
@@ -92,6 +94,8 @@ def create_app() -> FastAPI:
     application.include_router(tools_router)
     application.include_router(memory_router)
     application.include_router(skills_router)
+    application.include_router(crawler_router)
+    application.include_router(vuln_db_router)
 
     # ------------------------------------------------------------------
     # 启动时初始化数据库（确保 secbot.db 与表在首次请求前就存在）
@@ -105,7 +109,9 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     @application.get("/health", tags=["Health"])
     async def health():
-        return {"status": "ok"}
+        from datetime import datetime
+
+        return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
     return application
 

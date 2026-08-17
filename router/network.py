@@ -1,9 +1,15 @@
 """
-网络路由 — 内网发现、目标管理、授权管理
+网络路由 — 内网发现、目标管理、授权管理、远程控制
+对齐 TS network.controller.ts：新增 authorized-targets / connect / execute /
+upload / download / disconnect / control/sessions 七个端点。
+请求字段为 camelCase（对齐 TS DTO），响应为 snake_case。
 """
 
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from router.dependencies import get_main_controller
 from router.schemas import (
@@ -19,6 +25,40 @@ from router.schemas import (
 )
 
 router = APIRouter(prefix="/api/network", tags=["Network"])
+
+
+class ConnectTargetRequest(BaseModel):
+    target_ip: str = ""
+    targetIp: str = ""  # TS DTO 字段（camelCase）
+    connection_type: Optional[str] = None
+    connectionType: Optional[str] = None
+
+    def resolved_ip(self) -> str:
+        return self.targetIp or self.target_ip
+
+    def resolved_connection_type(self) -> Optional[str]:
+        return self.connectionType or self.connection_type
+
+
+class ExecuteTargetRequest(ConnectTargetRequest):
+    command: str = ""
+
+
+class UploadFileRequest(ConnectTargetRequest):
+    local_path: str = ""
+    localPath: str = ""
+    remote_path: str = ""
+    remotePath: str = ""
+
+    def resolved_local(self) -> str:
+        return self.localPath or self.local_path
+
+    def resolved_remote(self) -> str:
+        return self.remotePath or self.remote_path
+
+
+class DownloadFileRequest(UploadFileRequest):
+    pass
 
 
 @router.post("/discover", response_model=DiscoverResponse, summary="内网发现")
@@ -145,3 +185,98 @@ async def revoke_authorization(target_ip: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"撤销授权错误: {e}")
+
+
+# ---------------------------------------------------------------------------
+# 远程控制（对齐 TS network.controller.ts）
+# ---------------------------------------------------------------------------
+
+
+@router.get("/authorized-targets", summary="已授权目标列表")
+async def get_authorized_targets():
+    """获取所有已授权目标（含授权信息）。"""
+    mc = get_main_controller()
+    return {"targets": mc.get_authorized_targets()}
+
+
+@router.post("/connect", summary="连接目标")
+async def connect_target(body: ConnectTargetRequest):
+    """连接到已授权目标；成功返回 session_id。"""
+    target_ip = body.resolved_ip()
+    connection_type = body.resolved_connection_type()
+    if not target_ip:
+        return {"success": False, "error": "Missing parameter: targetIp"}
+
+    mc = get_main_controller()
+    if not mc.auth_manager.is_authorized(target_ip):
+        return {"success": False, "error": "Target is not authorized"}
+
+    session_id = mc.connect_target(target_ip, connection_type)
+    if not session_id:
+        return {"success": False, "error": "Connection failed"}
+    resolved = connection_type or "ssh"
+    return {"success": True, "session_id": session_id, "connection_type": resolved}
+
+
+@router.post("/execute", summary="在目标上执行命令")
+async def execute_on_target(body: ExecuteTargetRequest):
+    target_ip = body.resolved_ip()
+    if not target_ip or not body.command:
+        return {"success": False, "error": "Missing parameter: targetIp / command"}
+
+    mc = get_main_controller()
+    if not mc.auth_manager.is_authorized(target_ip):
+        return {"success": False, "error": "Target is not authorized"}
+
+    result = mc.execute_on_target(target_ip, body.command)
+    if isinstance(result, dict) and "connection_type" not in result:
+        result.setdefault("connection_type", body.resolved_connection_type() or "ssh")
+    return result
+
+
+@router.post("/upload", summary="上传文件到目标")
+async def upload_to_target(body: UploadFileRequest):
+    target_ip = body.resolved_ip()
+    local_path = body.resolved_local()
+    remote_path = body.resolved_remote()
+    if not target_ip or not local_path or not remote_path:
+        return {"success": False, "error": "Missing parameter: targetIp / localPath / remotePath"}
+
+    mc = get_main_controller()
+    if not mc.auth_manager.is_authorized(target_ip):
+        return {"success": False, "error": "Target is not authorized"}
+
+    return mc.upload_to_target(target_ip, local_path, remote_path)
+
+
+@router.post("/download", summary="从目标下载文件")
+async def download_from_target(body: DownloadFileRequest):
+    target_ip = body.resolved_ip()
+    local_path = body.resolved_local()
+    remote_path = body.resolved_remote()
+    if not target_ip or not local_path or not remote_path:
+        return {"success": False, "error": "Missing parameter: targetIp / remotePath / localPath"}
+
+    mc = get_main_controller()
+    if not mc.auth_manager.is_authorized(target_ip):
+        return {"success": False, "error": "Target is not authorized"}
+
+    return mc.download_from_target(target_ip, remote_path, local_path)
+
+
+@router.post("/disconnect", summary="断开目标连接")
+async def disconnect_target(body: ConnectTargetRequest):
+    target_ip = body.resolved_ip()
+    connection_type = body.resolved_connection_type() or "ssh"
+    if not target_ip:
+        return {"success": False, "error": "Missing parameter: targetIp"}
+
+    mc = get_main_controller()
+    mc.disconnect_target(target_ip)
+    return {"success": True, "message": f"Disconnected {target_ip} ({connection_type})"}
+
+
+@router.get("/control/sessions", summary="活动控制会话")
+async def list_control_sessions():
+    mc = get_main_controller()
+    return {"active_sessions": mc.remote_controller.get_active_sessions()}

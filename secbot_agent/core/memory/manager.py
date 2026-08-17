@@ -306,6 +306,16 @@ class MemoryManager:
         )
         await self.episodic.add(item)
 
+    async def add_episode(self, event: str, outcome: str, target: str = "") -> None:
+        """添加事件记忆（委托 EpisodicMemory，对齐 TS memory.service）"""
+        await self.episodic.add_episode(event, outcome, target)
+
+    async def add_knowledge(
+        self, fact: str, category: str = "general", importance: float = 0.5
+    ) -> None:
+        """添加知识（委托 LongTermMemory，对齐 TS memory.service）"""
+        await self.long_term.add_knowledge(fact, category, importance)
+
     async def clear_all(self) -> None:
         """清空所有记忆"""
         await self.short_term.clear()

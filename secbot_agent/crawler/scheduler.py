@@ -62,7 +62,7 @@ class CrawlerScheduler:
         Returns:
             任务ID
         """
-        task_id = f"{url}_{datetime.now().timestamp()}"
+        task_id = f"{url.replace('/', '~')}_{datetime.now().timestamp()}"
         task = CrawlTask(
             id=task_id,
             url=url,
@@ -160,12 +160,16 @@ class CrawlerScheduler:
             return self.tasks[task_id].status
         return None
 
-    def cancel_task(self, task_id: str):
-        """取消任务"""
-        if task_id in self.running_tasks:
-            self.running_tasks[task_id].cancel()
-            if task_id in self.tasks:
-                self.tasks[task_id].status = TaskStatus.CANCELLED
+    def cancel_task(self, task_id: str) -> bool:
+        """取消任务（对齐 TS：任务存在即置 cancelled 并返回 True，不存在返回 False）"""
+        if task_id not in self.tasks:
+            return False
+        handle = self.running_tasks.get(task_id)
+        if handle:
+            handle.cancel()
+        self.tasks[task_id].status = TaskStatus.CANCELLED
+        self.tasks[task_id].completed_at = datetime.now()
+        return True
 
     def get_realtime_crawler(self) -> RealtimeCrawler:
         """获取实时爬虫实例"""

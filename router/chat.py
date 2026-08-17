@@ -344,6 +344,15 @@ async def _interaction_event_generator(
                 }
             )
         finally:
+            # 交互结束后登记会话（connection_type=chat），供 GET /api/sessions 观察
+            try:
+                from secbot_agent.controller.session_registry import register_interaction
+
+                register_interaction(
+                    interaction_request_id, agent_type=agent_type or "agent"
+                )
+            except Exception as reg_err:
+                logger.debug(f"登记交互会话失败（不影响交互）: {reg_err}")
             if final_response:
                 queue.put_nowait(
                     {
