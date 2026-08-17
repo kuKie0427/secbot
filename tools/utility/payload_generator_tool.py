@@ -122,7 +122,7 @@ PAYLOAD_TEMPLATES = {
 class PayloadGeneratorTool(BaseTool):
     """攻击载荷生成器（仅生成文本，不执行）"""
 
-    sensitivity = "high"
+    sensitivity = "low"  # TS sensitive=false 对齐
 
     def __init__(self):
         super().__init__(

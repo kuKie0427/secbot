@@ -42,7 +42,7 @@ ERROR_PATTERNS = [
 class ParamFuzzerTool(BaseTool):
     """HTTP 参数 Fuzzer（检测注入类漏洞）"""
 
-    sensitivity = "high"
+    sensitivity = "low"  # TS sensitive=false 对齐
 
     def __init__(self):
         super().__init__(

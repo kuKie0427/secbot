@@ -68,6 +68,7 @@ dependencies = [
     "ddgs>=9.0.0",
     "dnspython>=2.8.0",
     "ldap3>=2.9.1",
+    "mcp>=1.9,<2",
 ]
 
 [project.optional-dependencies]
@@ -93,6 +94,7 @@ exploit-tools = [
 hackbot = "secbot_cli.cli:app"
 secbot = "secbot_cli.cli:app"
 secbot-cli = "secbot_cli.cli:app"
+secbot-mcp = "router.mcp_server:main"
 
 # 工具扩展 entry point：第三方包在其 pyproject.toml 中声明即可注册
 # 文档见 tools/registry.py 或 docs/TOOL_EXTENSION.md

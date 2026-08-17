@@ -1,6 +1,8 @@
 """
-MCP 工具包骨架 — mcp_call 客户端实现于 Phase 3。
+MCP 工具包：mcp_call 客户端（调用外部 MCP stdio server）
 """
-MCP_TOOLS: list = []
+from tools.mcp.mcp_call import McpCallTool
 
-__all__ = ["MCP_TOOLS"]
+MCP_TOOLS = [McpCallTool()]
+
+__all__ = ["McpCallTool", "MCP_TOOLS"]

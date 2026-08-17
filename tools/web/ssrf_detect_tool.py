@@ -51,7 +51,7 @@ SSRF_INDICATORS = [
 class SsrfDetectTool(BaseTool):
     """SSRF 漏洞检测工具"""
 
-    sensitivity = "high"
+    sensitivity = "low"  # TS sensitive=false 对齐
 
     def __init__(self):
         super().__init__(
