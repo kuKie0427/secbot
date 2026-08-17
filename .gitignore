@@ -92,3 +92,7 @@ bin/
 commit_msg.txt
 test-reports/
 
+
+# 环境变量备份（历史泄露隐患，勿入库；见 Phase 0 记录）
+.env.backup
+*.env.backup

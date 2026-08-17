@@ -43,4 +43,4 @@ jobs:
 
       - name: Test
         run: |
-          python -m pytest tests/ -x -q --tb=short || true
+          python -m pytest tests/ -x -q --tb=short

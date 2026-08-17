@@ -1,0 +1,14 @@
+services:
+  secbot:
+    build: .
+    image: hackbot:latest
+    container_name: secbot
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped

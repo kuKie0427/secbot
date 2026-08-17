@@ -1,3 +1,4 @@
+# DISABLED: 需要真实 API Key/外部服务，不进入 CI；重命名去掉 disabled_ 前缀手动运行。
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """

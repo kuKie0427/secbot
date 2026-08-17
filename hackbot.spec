@@ -12,8 +12,8 @@ IS_LINUX = sys.platform == 'linux'
 _REPO_ROOT = os.path.dirname(os.path.abspath(SPEC))
 
 # 顶层包与模块（与 pyproject.toml [tool.setuptools] packages 对齐）
+# 历史遗留的 hackbot/tui 顶层包已移除（包已更名为 secbot_agent/secbot_cli）
 TOP_LEVEL = [
-    'hackbot',
     'secbot_agent',
     'secbot_agent.core',
     'secbot_agent.core.agents',
@@ -31,9 +31,9 @@ TOP_LEVEL = [
     'secbot_agent.payloads',
     'secbot_agent.scanner',
     'secbot_agent.system',
+    'secbot_cli',
     'hackbot_config',
     'tools',
-    'tui',
     'utils',
     'router',
 ]
@@ -57,7 +57,7 @@ HIDDEN_IMPORTS = [
     'aiohttp',
     'openai',
     'router.main',
-    'hackbot.launch_tui',
+    'secbot_cli.cli',
 ] + TOP_LEVEL
 
 # 数据文件：提示词模板等
