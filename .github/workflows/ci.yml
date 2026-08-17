@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ruff build
+          python -m pip install ruff build pytest-cov
           python -m pip install -e ".[dev]"
 
       - name: Lint (ruff)
@@ -41,9 +41,13 @@ jobs:
           python -m build
           python -m pip install dist/*.whl
 
-      - name: Test
+      - name: Test (hard gate)
         run: |
           python -m pytest tests/ -x -q --tb=short
+
+      - name: Coverage report (non-gating)
+        run: |
+          python -m pytest tests/ -q --cov --cov-report=term | tail -5 || true
 
   web:
     runs-on: ubuntu-latest

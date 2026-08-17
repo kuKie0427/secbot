@@ -27,12 +27,12 @@
 | `context_patch` | ✅ | ✅ | ❌ 前端不消费 | `facts_count, pinned, unresolved, summary` / 失败时 `facts_count, error` | 一致（含错误分支） |
 | `intent_decision` | ✅ | ✅ | ❌ 前端不消费 | `intent, confidence, needs_explore, needs_report, focus, rationale` | 一致 |
 | `clarify` | ✅ | ✅ | ❌ 前端不消费 | `question` | 一致 |
-| `response_chunk` | ✅ chat.service:411（流式收尾） | ❌ **缺失** | ✅ | `chunk` | **待补**：Python 收尾为整段 `response`；流式分块属增强项（无它前端仍正常——`response` 兜底） |
+| `response_chunk` | ✅ chat.service:411（流式收尾） | ✅ Phase 7 补齐（QA 流式 on_chunk → RESPONSE_CHUNK） | ✅ | `chunk` | 一致；provider 不支持流式时 Python 静默降级整段 `response` |
 | `response` | ✅ | ✅（finally 汇总） | ✅ | `content, agent` | Python 额外 `view_type` |
 | `error` | ✅ `{error, code, statusCode}` | ✅ 同构（chat.py:336-345） | ✅ 读 `data.code` | `error, code, statusCode` | 一致（Phase 6 核对确认已补 code） |
 | `done` | ✅ 结束序列 | ✅ 结束序列（finally 必发） | ✅ break | `{}` | 一致：**error 后必跟 done** |
 | `root_required` | ✅ | ✅ | 弹窗（chat 流外监听） | `request_id, command` | 一致；客户端 POST `/api/chat/root-response` 应答 |
-| `context_debug` | ✅ 仅 `SECBOT_CONTEXT_DEBUG=1` 时 | ❌（session.py:535 有残留） | ❌ | `session_id, ...debug` | 调试事件；Python 残留在 Phase 7 清理 |
+| `context_debug` | ✅ 仅 `SECBOT_CONTEXT_DEBUG=1` 时 | ✅ Phase 7 修复（独立 CONTEXT_DEBUG 事件，debug 字段全量） | ❌ | `session_id, model, context_window, prompt_budget, used_tokens, reserved_tokens, session_messages, sqlite_turns, vector_hits, pinned, focus, dropped_sections` | 调试事件；双端环境门控 |
 
 ## 结束序列（硬契约）
 
@@ -51,7 +51,13 @@ useChat.ts:132-134 把 `reasoning_start/reasoning_chunk` 别名为 `thought_*` �
 | # | 差异 | 处置 |
 |---|---|---|
 | D1 | Python 发 `thought_chunk`（TS SSE 不发） | 有意增强：增量渲染；前端已兼容 |
-| D2 | Python 不发 `response_chunk` | 接受：整段 `response` 兜底，前端行为一致；流式收尾列为后续增强 |
-| D3 | Python 多字段 `agent`/`view_type` 等 | 增量无害，前端忽略未知字段 |
-| D4 | `action_start` 无 `view_type`（双端一致） | 豁免：前端默认 'raw' |
-| D5 | `context_debug` Python 缺（session.py 有残留 type） | Phase 7 清理残留 |
+| D2 | Python 多字段 `agent`/`view_type` 等 | 增量无害，前端忽略未知字段 |
+| D3 | `action_start` 无 `view_type`（双端一致） | 豁免：前端默认 'raw' |
+| D4 | `response_chunk` 降级 | provider 不支持 astream 时静默回退整段 `response`（TS 行为等价） |
+| D5 | `TOAST_SHOW`/`COMMAND_EXECUTE` 枚举 | 双端均定义未用；Python 已删除枚举成员（TS 侧保留未用）——不实现任何语义 |
+
+## 快照测试
+
+`tests/router/test_sse_contract.py` 锁定线上事件名全集与关键字段
+（step_key/iteration/view_type/planning.scope/response_chunk/context_debug 字段）。
+改任一事件名 → 测试必红（mutation 验证过）；变更须显式更新快照并同步本文件。

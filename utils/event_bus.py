@@ -54,11 +54,12 @@ class EventType(str, Enum):
     EXPLORE_END = "explore_end"
     CONTEXT_PATCH = "context_patch"
     CONTEXT_USAGE = "context_usage"
+    CONTEXT_DEBUG = "context_debug"
     CLARIFY = "clarify"
+    RESPONSE_CHUNK = "response_chunk"  # QA 流式收尾（对齐 TS chat.service.ts QA streaming）
 
-    # UI 反馈（OpenCode 理念：事件驱动 Toast）
-    TOAST_SHOW = "toast_show"
-    COMMAND_EXECUTE = "command_execute"
+    # 注：TS event-bus.ts 的 TOAST_SHOW / COMMAND_EXECUTE 双端均为定义未用
+    # （TS TUI toast 走 terminal-ui 内部总线），Python 侧不实现——见 docs/CONTRACT_SSE.md
 
 
 @dataclass

@@ -299,6 +299,11 @@ class SessionManager:
             return await self._persist_and_return(user_input, ans, intent.intent)
 
         if intent.intent == "qa":
+            # 路由器已产出 direct_response 时直接短路（对齐 TS directResponse 语义，不调 LLM）
+            if (intent.direct_response or "").strip():
+                return await self._persist_and_return(
+                    user_input, intent.direct_response.strip(), "qa"
+                )
             if not self.context_assembler or not self.current_session:
                 ans = await self.qa_agent.answer(user_input)
                 return await self._persist_and_return(user_input, ans, "qa")
@@ -314,12 +319,13 @@ class SessionManager:
                 {"role": m.role.value, "content": m.content}
                 for m in self.current_session.messages
             ]
-            if (intent.direct_response or "").strip():
-                ans = intent.direct_response.strip()
-            else:
-                ans = await self.qa_agent.answer_with_context(
-                    user_input, hist, ctx.context_block
-                )
+            # 对齐 TS QA 路径：流式 chunk → response_chunk 事件（provider 不支持流式时 QA 内部静默降级）
+            ans = await self.qa_agent.answer_with_context(
+                user_input, hist, ctx.context_block,
+                on_chunk=lambda piece: self.event_bus.emit_simple(
+                    EventType.RESPONSE_CHUNK, chunk=piece, agent="qa"
+                ),
+            )
             return await self._persist_and_return(user_input, ans, "qa")
 
         if intent.intent == "clarify_needed":
@@ -529,17 +535,21 @@ class SessionManager:
                 _context_block = ctx.context_block
                 await self._emit_context_usage(ctx.debug)
                 if os.environ.get("SECBOT_CONTEXT_DEBUG") in ("1", "true"):
+                    # 独立 context_debug 事件（对齐 TS：SECBOT_CONTEXT_DEBUG 门控、debug 字段全量透传）
                     await self.event_bus.emit_simple_async(
-                        EventType.CONTENT,
-                        content="",
-                        type="context_debug",
+                        EventType.CONTEXT_DEBUG,
                         session_id=sid,
+                        model=ctx.debug.model_name,
+                        context_window=ctx.debug.context_window,
+                        prompt_budget=ctx.debug.prompt_budget,
+                        used_tokens=ctx.debug.used_tokens,
+                        reserved_tokens=ctx.debug.reserved_tokens,
                         session_messages=ctx.debug.session_messages,
                         sqlite_turns=ctx.debug.sqlite_turns,
                         vector_hits=ctx.debug.vector_hits,
                         pinned=ctx.debug.pinned,
-                        prompt_budget=ctx.debug.prompt_budget,
-                        used_tokens=ctx.debug.used_tokens,
+                        focus=ctx.debug.focus,
+                        dropped_sections=ctx.debug.dropped_sections,
                     )
             except Exception as e:
                 logger.warning(f"上下文组装失败: {e}")

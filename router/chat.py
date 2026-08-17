@@ -225,8 +225,30 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
                 "pinned": d.get("pinned"),
             },
         )
+    if t == EventType.CONTEXT_DEBUG:
+        # 对齐 TS chat.service.ts context_debug：SECBOT_CONTEXT_DEBUG 门控下的调试帧，字段全量
+        return (
+            "context_debug",
+            {
+                "session_id": d.get("session_id"),
+                "model": d.get("model"),
+                "context_window": d.get("context_window"),
+                "prompt_budget": d.get("prompt_budget"),
+                "used_tokens": d.get("used_tokens"),
+                "reserved_tokens": d.get("reserved_tokens"),
+                "session_messages": d.get("session_messages"),
+                "sqlite_turns": d.get("sqlite_turns"),
+                "vector_hits": d.get("vector_hits"),
+                "pinned": d.get("pinned"),
+                "focus": d.get("focus") or [],
+                "dropped_sections": d.get("dropped_sections") or [],
+            },
+        )
     if t == EventType.CLARIFY:
         return ("clarify", {"question": d.get("question", "")})
+    if t == EventType.RESPONSE_CHUNK:
+        # 对齐 TS chat.service.ts QA streaming：response_chunk → 前端增量渲染最终回复
+        return ("response_chunk", {"chunk": d.get("chunk", ""), "agent": d.get("agent")})
     return None
 
 
@@ -272,7 +294,9 @@ async def _interaction_event_generator(
         EventType.EXPLORE_END,
         EventType.CONTEXT_PATCH,
         EventType.CONTEXT_USAGE,
+        EventType.CONTEXT_DEBUG,
         EventType.CLARIFY,
+        EventType.RESPONSE_CHUNK,
     ):
         event_bus.subscribe(et, on_bus_event)
 

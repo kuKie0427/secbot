@@ -578,6 +578,10 @@ SQLite 当前主要存：
 - `README.md`
 - `docs/API.md`
 - `docs/design-paradigms/*.md`
+- `docs/CONTRACT_SSE.md` — SSE 线上事件双端契约（Phase 7 起，快照测试锁定）
+- `docs/API_PARITY.md` — REST 端点与 TS 仓对齐清单（含差异 D1-D13 声明）
+- `docs/TOOL_INDEX.md` — 工具索引（脚本生成：`scripts/gen_tool_index.py --check`）
+- `docs/MCP.md` / `docs/DEPLOY_WEB.md`
 
 ### 但要记住
 
@@ -593,8 +597,15 @@ SQLite 当前主要存：
 
 - 默认 agent 到底是谁
 - session 是否持久化
-- 当前 SSE 事件名和 payload
+- 当前 SSE 事件名和 payload（`tests/router/test_sse_contract.py` 为准）
 - planner / executor 的真实字段
+
+### 双端契约要点（TS 仓为事实源）
+
+- 工具名 / SSE 事件名 / REST 路径逐字对齐 TS；改名必须同步快照测试与 CONTRACT_SSE.md
+- 敏感工具集恰为 {attack_test, exploit, sniff, credential_spray, mcp_call}（execgo_action 豁免未实现）；ssh_probe 不敏感
+- Web UI（`web/`，Vite+React）由 FastAPI 托管 `secbot_web/dist`；dist 不进 git，`make build-web` / CI 构建
+- Python 领先项：thought_chunk 流式、root_required 完成态、terminal_session 池真实执行、`~` 编码的 crawler id
 
 ---
 

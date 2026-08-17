@@ -6,7 +6,7 @@ QAAgent：专门处理简单问候与项目/上下文问答
 """
 
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Callable, Optional, List, Dict, Any
 
 from secbot_agent.core.agents.base import BaseAgent
 from utils.logger import logger
@@ -163,6 +163,7 @@ class QAAgent(BaseAgent):
         user_input: str,
         conversation_history: List[dict],
         context_block: str = "",
+        on_chunk: Optional[Callable[[str], None]] = None,
     ) -> str:
         """
         问答：带对话上下文的 LLM 问答。
@@ -172,6 +173,8 @@ class QAAgent(BaseAgent):
             user_input: 用户当前的问题
             conversation_history: 对话历史，格式 [{"role": "user"|"assistant", "content": "..."}]
             context_block: ContextAssembler 组装的预算上下文
+            on_chunk: 流式回调（对齐 TS answerAdaptive 的 onChunk → response_chunk 事件）；
+                LLM/网络不支持流式时静默降级为一次性返回（回调不被调用）
 
         Returns:
             LLM 根据上下文生成的回答
@@ -218,6 +221,22 @@ class QAAgent(BaseAgent):
 
         try:
             self._ensure_llm()
+            # 流式优先（对齐 TS answerAdaptive：逐 chunk 回调 → response_chunk 事件）
+            if on_chunk is not None:
+                chunks: List[str] = []
+                try:
+                    async for token in self._llm.astream(messages):
+                        piece = token if isinstance(token, str) else getattr(token, "content", "")
+                        if not piece:
+                            continue
+                        chunks.append(str(piece))
+                        on_chunk(str(piece))
+                    answer = "".join(chunks).strip()
+                    if answer:
+                        return answer
+                    # 空流（部分 provider 不支持 astream）→ 落回整段调用，下方继续
+                except Exception as stream_err:
+                    logger.debug(f"QA 流式不可用，回退整段调用: {stream_err}")
             response = await asyncio.wait_for(self._llm.ainvoke(messages), timeout=30.0)
             if isinstance(response, str):
                 return response.strip()
