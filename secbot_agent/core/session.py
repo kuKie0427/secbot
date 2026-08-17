@@ -199,6 +199,41 @@ class SessionManager:
                 return instance
         return None
 
+    async def _maybe_inject_skills(self, user_input: str) -> str:
+        """SECBOT_SKILL_AUTO_INJECT=1 时把相关技能正文前置注入查询。
+
+        默认关闭：SkillInjector.__init__ 会急切加载全部技能，关闭时惰性 import
+        都不发生（本方法直接返回原文），不改变默认行为。
+        """
+        import os
+
+        if os.environ.get("SECBOT_SKILL_AUTO_INJECT", "0").strip().lower() not in ("1", "true", "yes"):
+            return user_input
+        try:
+            from secbot_agent.skills.injector import SkillInjector  # 惰性 import
+
+            if not hasattr(self, "_skill_injector") or self._skill_injector is None:
+                self._skill_injector = SkillInjector()
+            relevant = self._skill_injector.find_relevant_skills(user_input)
+            if not relevant:
+                return user_input
+            blocks = []
+            for skill in relevant:
+                blocks.append(
+                    f"# Skill: {skill.manifest.name}\n{skill.instructions.strip()}"
+                )
+            return (
+                "<available-skills>\n"
+                + "\n\n".join(blocks)
+                + "\n</available-skills>\n\n"
+                + user_input
+            )
+        except Exception as e:
+            from utils.logger import logger
+
+            logger.warning(f"技能注入失败（降级为原文）: {e}")
+            return user_input
+
     async def _emit_context_usage(self, debug: ContextDebugMeta) -> None:
         ratio = (
             min(1.0, max(0.0, debug.used_tokens / debug.prompt_budget))
@@ -368,6 +403,9 @@ class SessionManager:
 
         if self.current_session:
             self.current_session.add_message(MessageRole.USER, user_input)
+
+        # SECBOT_SKILL_AUTO_INJECT=1 时注入相关技能（默认关闭；关闭时不得实例化 SkillInjector——其 __init__ 急切加载）
+        user_input = await self._maybe_inject_skills(user_input)
 
         self._current_tool_results = []
         self._thought_done_iterations = set()

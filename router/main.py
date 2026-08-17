@@ -19,6 +19,7 @@ from router.network import router as network_router
 from router.database import router as database_router
 from router.tools import router as tools_router
 from router.memory import router as memory_router
+from router.skills import router as skills_router
 from router.dependencies import get_db_manager
 from utils.error_mapper import map_exception_to_client
 from utils.logger import logger
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     application.include_router(database_router)
     application.include_router(tools_router)
     application.include_router(memory_router)
+    application.include_router(skills_router)
 
     # ------------------------------------------------------------------
     # 启动时初始化数据库（确保 secbot.db 与表在首次请求前就存在）

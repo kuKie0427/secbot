@@ -1,6 +1,12 @@
 """
-Skills 工具包骨架 — list_skills/get_skill/create_skill 实现于 Phase 2 接入 SkillService。
+Skills 工具包：list_skills / get_skill / create_skill（依赖注入共享 SkillService）
 """
-SKILLS_TOOLS: list = []
+from tools.skills.skill_tools import ListSkillsTool, GetSkillTool, CreateSkillTool
 
-__all__ = ["SKILLS_TOOLS"]
+SKILLS_TOOLS = [
+    ListSkillsTool(),
+    GetSkillTool(),
+    CreateSkillTool(),
+]
+
+__all__ = ["ListSkillsTool", "GetSkillTool", "CreateSkillTool", "SKILLS_TOOLS"]
