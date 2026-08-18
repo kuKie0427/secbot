@@ -270,5 +270,9 @@ class VulnDBService:
             "adapters": list(self._adapters.keys()),
         }
 
+    def clear(self) -> None:
+        """清空漏洞库向量数据。"""
+        self._vector_store.clear()
+
     def close(self):
         self._vector_store.close()

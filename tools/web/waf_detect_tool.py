@@ -82,8 +82,8 @@ class WafDetectTool(BaseTool):
                 req = urllib.request.Request(url)
                 req.add_header("User-Agent", "Mozilla/5.0")
                 try:
-                    resp = urllib.request.urlopen(req, timeout=10)
-                    return dict(resp.headers), resp.read(5000).decode(errors="ignore"), resp.status
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        return dict(resp.headers), resp.read(5000).decode(errors="ignore"), resp.status
                 except urllib.error.HTTPError as e:
                     return dict(e.headers), e.read(5000).decode(errors="ignore"), e.code
                 except Exception as e:
@@ -95,8 +95,8 @@ class WafDetectTool(BaseTool):
                 req = urllib.request.Request(evil_url)
                 req.add_header("User-Agent", "Mozilla/5.0")
                 try:
-                    resp = urllib.request.urlopen(req, timeout=10)
-                    return dict(resp.headers), resp.read(5000).decode(errors="ignore"), resp.status
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        return dict(resp.headers), resp.read(5000).decode(errors="ignore"), resp.status
                 except urllib.error.HTTPError as e:
                     return dict(e.headers), e.read(5000).decode(errors="ignore"), e.code
                 except Exception as e:

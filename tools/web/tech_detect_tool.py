@@ -70,9 +70,9 @@ class TechDetectTool(BaseTool):
             def _fetch():
                 req = urllib.request.Request(url)
                 req.add_header("User-Agent", "Mozilla/5.0 (compatible; secbot-cli/1.0)")
-                resp = urllib.request.urlopen(req, timeout=15)
-                headers = dict(resp.headers)
-                body = resp.read(50000).decode(errors="ignore")
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    headers = dict(resp.headers)
+                    body = resp.read(50000).decode(errors="ignore")
                 return headers, body
 
             headers, body = await loop.run_in_executor(None, _fetch)

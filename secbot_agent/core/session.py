@@ -563,7 +563,7 @@ class SessionManager:
             if not agent_instance:
                 available_agents = list(self.agents.keys()) if self.agents else []
                 err = f"未找到 agent: {at}\n可用 agents: {available_agents}"
-                await self.event_bus.emit_simple_async(EventType.ERROR, error=err)
+                await self.event_bus.emit_simple_async(EventType.ERROR, error=err, code="INTERNAL_ERROR", statusCode=500)
                 return err
 
             if hasattr(agent_instance, "reset_agent_results"):
@@ -697,7 +697,7 @@ class SessionManager:
             available_agents = list(self.agents.keys()) if self.agents else []
             error_msg = f"未找到 agent: {at}\n可用 agents: {available_agents}\n检查是否正确初始化或传递了 agents 参数。"
             logger.error(f"Agent 获取失败: at={at}, agents_keys={available_agents}")
-            await self.event_bus.emit_simple_async(EventType.ERROR, error=error_msg)
+            await self.event_bus.emit_simple_async(EventType.ERROR, error=error_msg, code="INTERNAL_ERROR", statusCode=500)
             return error_msg
 
         # 如 Agent 支持多子 Agent 聚合，先清空上一轮的聚合结果
@@ -1176,6 +1176,8 @@ class SessionManager:
             self.event_bus.emit_simple(
                 EventType.ERROR,
                 error=data.get("error", ""),
+                code="INTERNAL_ERROR",
+                statusCode=500,
                 agent=agent,
             )
 

@@ -56,8 +56,8 @@ def _load_tools_from_module(module_path: str) -> List[BaseTool]:
                     cls = getattr(mod, attr)
                     if isinstance(cls, type) and issubclass(cls, BaseTool):
                         tools.append(cls())
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to instantiate tool class %s from module %s: %s", attr, module_path, e)
         return tools
     except Exception as e:
         logger.warning(f"加载工具模块 {module_path} 失败: {e}")

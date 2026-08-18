@@ -62,7 +62,7 @@ async def remember(body: RememberRequest):
     await mgr.remember(
         body.content, body.memory_type, body.importance, **body.metadata
     )
-    return {"ok": True}
+    return {"success": True}
 
 
 @router.post("/distill", summary="从对话蒸馏记忆")
@@ -125,7 +125,7 @@ async def stats():
 async def clear():
     mgr = get_memory_manager()
     await mgr.clear_all()
-    return {"ok": True}
+    return {"success": True}
 
 
 @router.get("/list", summary="列出记忆")
@@ -169,7 +169,7 @@ async def vector_add(body: VectorAddRequest):
         memory_type=body.collection,
         metadata=body.metadata,
     )
-    return {"id": item_id}
+    return {"success": True, "item_id": item_id}
 
 
 @router.post("/vector/search", summary="向量搜索")

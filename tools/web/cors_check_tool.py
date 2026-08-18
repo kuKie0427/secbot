@@ -54,8 +54,8 @@ class CorsCheckTool(BaseTool):
                     req.add_header("Access-Control-Request-Method", "GET")
                     req.add_header("Access-Control-Request-Headers", "Authorization, Content-Type")
                     try:
-                        resp = urllib.request.urlopen(req, timeout=10)
-                        return dict(resp.headers), resp.status
+                        with urllib.request.urlopen(req, timeout=10) as resp:
+                            return dict(resp.headers), resp.status
                     except urllib.error.HTTPError as e:
                         return dict(e.headers), e.code
                     except Exception:
@@ -63,8 +63,8 @@ class CorsCheckTool(BaseTool):
                         try:
                             req2 = urllib.request.Request(url)
                             req2.add_header("Origin", test_origin)
-                            resp2 = urllib.request.urlopen(req2, timeout=10)
-                            return dict(resp2.headers), resp2.status
+                            with urllib.request.urlopen(req2, timeout=10) as resp2:
+                                return dict(resp2.headers), resp2.status
                         except urllib.error.HTTPError as e2:
                             return dict(e2.headers), e2.code
                         except Exception:

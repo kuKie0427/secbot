@@ -10,8 +10,6 @@ from fastapi.testclient import TestClient
 
 from router.main import _resolve_web_dist, create_app
 
-pytestmark = pytest.mark.web
-
 _DIST = _resolve_web_dist()
 _HAS_DIST = (_DIST / "index.html").is_file()
 pytestmark = [

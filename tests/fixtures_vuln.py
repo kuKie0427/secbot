@@ -47,6 +47,9 @@ class FakeService:
     def get_stats(self) -> Dict:
         return {"vector_count": 1, "adapters": ["nvd", "cve"]}
 
+    def clear(self):
+        self._vector_store.clear()
+
     _vector_store = FakeVectorStore()
 
 

@@ -150,7 +150,6 @@ class TestWireSequence:
     def test_error_payload_has_code_and_status(self):
         # error 帧字段契约（TS useChat.ts:434-440 读 data.code）
         _, data = _map(EventType.ERROR, error="x")
-        # _event_to_sse 的 error 分支仅带 error/agent；完整 code 字段在生成器 catch 中
-        # （chat.py map_exception_to_client 直发）。此处锁生成器行为：
-        from router.chat import _interaction_event_generator  # noqa: F401  存在性
-        assert "error" in data or data == {"error": "x", "agent": None}
+        assert "error" in data
+        assert "code" in data
+        assert "statusCode" in data

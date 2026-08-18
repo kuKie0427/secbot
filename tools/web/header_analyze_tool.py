@@ -94,8 +94,8 @@ class HeaderAnalyzeTool(BaseTool):
             def _fetch():
                 req = urllib.request.Request(url)
                 req.add_header("User-Agent", "Mozilla/5.0")
-                resp = urllib.request.urlopen(req, timeout=15)
-                return dict(resp.headers), resp.status
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    return dict(resp.headers), resp.status
 
             headers, status = await loop.run_in_executor(None, _fetch)
             headers_lower = {k.lower(): v for k, v in headers.items()}

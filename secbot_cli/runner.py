@@ -475,13 +475,13 @@ def _render_startup_screen(
         "• 扫描当前主机所在内网环境",
         "• 你好 / 你能做什么",
         "• Scan localhost for open ports",
-        "• /plan 编写测试计划，/start 执行计划",
+        "• /task 执行安全测试任务，/skills 查看技能列表",
     ]
     right = [
         "推荐首条，发现内网主机与端口",
         "问候或了解能力（走问答）",
         "扫描本机开放端口",
-        "命令一览：规划/执行",
+        "命令一览：任务/技能",
     ]
 
     grid = Table.grid(padding=(0, 3))

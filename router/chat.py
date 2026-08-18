@@ -155,6 +155,8 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
             "error",
             {
                 "error": d.get("error", ""),
+                "code": d.get("code", "INTERNAL_ERROR"),
+                "statusCode": d.get("statusCode", 500),
                 "agent": d.get("agent"),
             },
         )

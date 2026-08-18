@@ -91,7 +91,7 @@ async def sync_from_sources(body: SyncFromSourcesRequest):
 @router.post("/clear", summary="清空向量库")
 async def clear_vectors():
     svc = _get_service()
-    svc._vector_store.clear()
+    svc.clear()
     return {"success": True}
 
 
